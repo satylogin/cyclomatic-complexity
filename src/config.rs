@@ -8,7 +8,7 @@ const ABOUT: &str = "This CLI find the cyclomatic complexity associated with the
 
 #[derive(Debug)]
 pub struct Config {
-    file: String,
+    pub file: String,
 }
 
 pub type ConfigResult<T> = Result<T, clap::Error>;
