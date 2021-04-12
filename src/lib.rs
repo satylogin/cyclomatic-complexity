@@ -1,3 +1,4 @@
+pub mod calculator;
 pub mod config;
-pub mod cyclomatic;
+pub mod parsers;
 pub mod thread_pool;
