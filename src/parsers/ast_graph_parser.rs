@@ -1,3 +1,4 @@
+use crate::calculator::{Edge, Graph, Parser};
 use core::fmt::Debug;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
@@ -7,10 +8,34 @@ use std::hash::{Hash, Hasher};
 use std::io::Read;
 use syn;
 
-pub fn calculate_complexity(file_path: String) -> i64 {
-    let ast = get_ast(file_path).ok().unwrap();
-    let _ast = ASTGraph::new(ast);
-    0
+fn get_node<T: Hash>(ast: T) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    ast.hash(&mut hasher);
+
+    hasher.finish()
+}
+
+type ParseResult<T> = Result<T, Box<dyn Error + 'static>>;
+
+fn get_ast(file_path: String) -> ParseResult<syn::File> {
+    println!("processing path: {}", file_path);
+
+    let mut src: String = String::new();
+    let mut file: File = File::open(&file_path)?;
+    file.read_to_string(&mut src)?;
+
+    Ok(syn::parse_file(&src)?)
+}
+
+pub struct ASTGraphParser;
+
+impl Parser for ASTGraphParser {
+    fn parse(&mut self, file: String) -> Graph {
+        let ast = get_ast(file).ok().unwrap();
+        let ast_graph = ASTGraph::new(ast);
+        let edges: Vec<Edge> = ast_graph.edges.into_iter().map(|t| t.into()).collect();
+        Graph::new(edges)
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -19,15 +44,8 @@ struct ASTGraph {
     edges: Vec<(u64, u64)>,
 }
 
-fn get_node<T: Hash>(ast: T) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    ast.hash(&mut hasher);
-
-    hasher.finish()
-}
-
 impl ASTGraph {
-    pub fn new(ast: syn::File) -> ASTGraph {
+    fn new(ast: syn::File) -> ASTGraph {
         let mut ast_graph = ASTGraph {
             nodes: HashSet::new(),
             edges: vec![],
@@ -166,16 +184,4 @@ impl ASTGraph {
     fn parse_block(&mut self, _: syn::Block, _: u64) {}
 
     fn parse_foreign_item(&mut self, _: syn::ForeignItem, _: u64) {}
-}
-
-type ParseResult<T> = Result<T, Box<dyn Error + 'static>>;
-
-fn get_ast(file_path: String) -> ParseResult<syn::File> {
-    println!("processing path: {}", file_path);
-
-    let mut src: String = String::new();
-    let mut file: File = File::open(&file_path)?;
-    file.read_to_string(&mut src)?;
-
-    Ok(syn::parse_file(&src)?)
 }
