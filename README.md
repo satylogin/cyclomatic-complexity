@@ -8,4 +8,4 @@ Crate to get cyclomatic complexity of a module
 * execute execute.sh file. For full list of supported actions, see DevWorkflow.yml
 
 ## Tasks
-1. write base code that reads some command line args, and sets config.
+* use use proc_macro::TokenStream; for dealing with rust token instead of writing on your own.

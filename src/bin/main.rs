@@ -1,11 +1,10 @@
-use cyclomatic_complexity::parsers::ast_graph_parser::ASTGraphParser;
-use cyclomatic_complexity::{calculator, config::Config};
+use cyclomatic_complexity::config::Config;
 use std::env;
 
 fn main() {
     let config: Config = Config::parse(env::args()).ok().unwrap();
     println!("{:?}", config);
 
-    let complexity = calculator::calculate(config.file, ASTGraphParser);
-    println!("calculated complexity: {}", complexity);
+    // let complexity = calculator::calculate(config.file, ASTGraphParser);
+    // println!("calculated complexity: {}", complexity);
 }
