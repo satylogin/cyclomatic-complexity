@@ -35,19 +35,25 @@ impl ParseError {
         }
     }
 
-    pub fn msg(mut self, msg: String) -> ParseError {
-        self.msg = Some(msg);
-        self
+    pub fn msg(self, msg: String) -> ParseError {
+        ParseError {
+            msg: Some(msg),
+            ..self
+        }
     }
 
-    pub fn source(mut self, source: Box<dyn Error>) -> ParseError {
-        self.source = Some(source);
-        self
+    pub fn source(self, source: Box<dyn Error>) -> ParseError {
+        ParseError {
+            source: Some(source),
+            ..self
+        }
     }
 
-    pub fn index(mut self, index: usize) -> ParseError {
-        self.index = Some(index);
-        self
+    pub fn index(self, index: usize) -> ParseError {
+        ParseError {
+            index: Some(index),
+            ..self
+        }
     }
 }
 
