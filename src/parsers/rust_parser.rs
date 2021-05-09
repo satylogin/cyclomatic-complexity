@@ -30,7 +30,7 @@ fn display(node: &ComplexityNode, path: String) {
     path_here += node.name.as_str();
 
     if node.children.is_empty() {
-        println!("Path: {}\nComplexity: {}\n", path_here, node.complexity);
+        println!("[{}] Complexity => {}", path_here, node.complexity);
     } else {
         for child in node.children.iter() {
             display(child, path_here.clone());
@@ -159,7 +159,7 @@ fn process_block(ast: syn::Block) -> usize {
             syn::Stmt::Expr(expr) => complexity += process_expr(expr),
             // syn::Stmt::Semi(expr, semi) => println!("{:#?}, {:#?}", expr, semi),
             _ => {}
-        }
+        };
     }
 
     complexity
@@ -171,6 +171,9 @@ fn process_expr(expr: syn::Expr) -> usize {
         syn::Expr::If(expr_if) => {
             complexity += process_expr_if(expr_if);
         }
+        syn::Expr::Block(expr_block) => {
+            complexity += process_expr_block(expr_block);
+        }
         _ => {}
     }
 
@@ -179,9 +182,16 @@ fn process_expr(expr: syn::Expr) -> usize {
 
 fn process_expr_if(expr_if: syn::ExprIf) -> usize {
     let mut complexity: usize = 1;
+
+    complexity += process_block(expr_if.then_branch);
+
     if let Some((_, expr)) = expr_if.else_branch {
         complexity += process_expr(*expr);
     }
 
     complexity
+}
+
+fn process_expr_block(expr_block: syn::ExprBlock) -> usize {
+    process_block(expr_block.block)
 }
