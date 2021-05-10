@@ -15,31 +15,8 @@ fn get_ast(file_path: String) -> ParseResult<syn::File> {
     Ok(syn::parse_file(&src)?)
 }
 
-pub fn display_complexity(file_path: String) {
-    let tree = ComplexityTree::generate(file_path).ok().unwrap().root;
-    display(&tree, String::new());
-}
-
-fn display(node: &ComplexityNode, path: String) {
-    let mut path_here: String = path;
-    if !path_here.is_empty() {
-        path_here += " > ";
-    }
-    path_here += node.kind.to_string().as_str();
-    path_here += ": ";
-    path_here += node.name.as_str();
-
-    if node.children.is_empty() {
-        println!("[{}] Complexity => {}", path_here, node.complexity);
-    } else {
-        for child in node.children.iter() {
-            display(child, path_here.clone());
-        }
-    }
-}
-
 #[derive(Debug)]
-enum ComplexityNodeKind {
+pub enum ComplexityNodeKind {
     Fn,
     Method,
     Impl,
@@ -53,11 +30,11 @@ impl fmt::Display for ComplexityNodeKind {
 }
 
 #[derive(Debug)]
-struct ComplexityNode {
-    name: String,
-    kind: ComplexityNodeKind,
-    complexity: usize,
-    children: Vec<ComplexityNode>,
+pub struct ComplexityNode {
+    pub name: String,
+    pub kind: ComplexityNodeKind,
+    pub complexity: usize,
+    pub children: Vec<ComplexityNode>,
 }
 
 impl ComplexityNode {
@@ -81,12 +58,12 @@ impl ComplexityNode {
 }
 
 #[derive(Debug)]
-struct ComplexityTree {
-    root: ComplexityNode,
+pub struct ComplexityTree {
+    pub root: ComplexityNode,
 }
 
 impl ComplexityTree {
-    fn generate(file_path: String) -> ParseResult<ComplexityTree> {
+    pub fn generate(file_path: String) -> ParseResult<ComplexityTree> {
         let file: syn::File = get_ast(file_path.clone())?;
 
         let mut root = ComplexityNode::new(file_path, ComplexityNodeKind::File);
@@ -112,7 +89,7 @@ fn process_file(ast: syn::File, parent: &mut ComplexityNode) {
 
 fn process_item_fn(ast: syn::ItemFn, parent: &mut ComplexityNode) {
     let node = ComplexityNode::new(ast.sig.ident.to_string(), ComplexityNodeKind::Fn)
-        .with_complexity(process_block(*ast.block));
+        .with_complexity((*ast.block).process());
 
     parent.add_child(node);
 }
@@ -135,7 +112,7 @@ fn process_item_impl(ast: syn::ItemImpl, parent: &mut ComplexityNode) {
 
 fn process_impl_item_method(ast: syn::ImplItemMethod, parent: &mut ComplexityNode) {
     let node = ComplexityNode::new(ast.sig.ident.to_string(), ComplexityNodeKind::Method)
-        .with_complexity(process_block(ast.block));
+        .with_complexity(ast.block.process());
 
     parent.add_child(node);
 }
@@ -150,48 +127,106 @@ fn get_impl_resolved_name(ast: &syn::ItemImpl) -> ParseResult<syn::Ident> {
     }
 }
 
-fn process_block(ast: syn::Block) -> usize {
-    let mut complexity: usize = 0;
-    for stmt in ast.stmts {
-        match stmt {
-            // syn::Stmt::Local(local) => println!("{:#?}", local),
-            // syn::Stmt::Item(item) => println!("{:#?}", item),
-            syn::Stmt::Expr(expr) => complexity += process_expr(expr),
-            // syn::Stmt::Semi(expr, semi) => println!("{:#?}, {:#?}", expr, semi),
+trait Process {
+    fn process(self) -> usize;
+}
+
+impl Process for syn::Block {
+    fn process(self) -> usize {
+        let mut complexity: usize = 0;
+        for stmt in self.stmts {
+            match stmt {
+                // syn::Stmt::Local(local) => println!("{:#?}", local),
+                // syn::Stmt::Item(item) => println!("{:#?}", item),
+                syn::Stmt::Expr(inner) => complexity += inner.process(),
+                // syn::Stmt::Semi(expr, semi) => println!("{:#?}, {:#?}", expr, semi),
+                _ => {}
+            };
+        }
+
+        complexity
+    }
+}
+
+impl Process for syn::Expr {
+    fn process(self) -> usize {
+        let mut complexity: usize = 0;
+        match self {
+            syn::Expr::Array(inner) => complexity += inner.process(),
+            syn::Expr::Assign(inner) => complexity += inner.process(),
+            syn::Expr::AssignOp(inner) => complexity += inner.process(),
+            syn::Expr::Block(inner) => complexity += inner.process(),
+            syn::Expr::Break(inner) => complexity += inner.process(),
+            syn::Expr::If(inner) => complexity += inner.process(),
             _ => {}
-        };
-    }
-
-    complexity
-}
-
-fn process_expr(expr: syn::Expr) -> usize {
-    let mut complexity: usize = 0;
-    match expr {
-        syn::Expr::If(expr_if) => {
-            complexity += process_expr_if(expr_if);
         }
-        syn::Expr::Block(expr_block) => {
-            complexity += process_expr_block(expr_block);
+
+        complexity
+    }
+}
+
+impl Process for syn::ExprArray {
+    fn process(self) -> usize {
+        let mut complexity: usize = 0;
+
+        for elem in self.elems {
+            complexity += elem.process();
         }
-        _ => {}
-    }
 
-    complexity
+        complexity
+    }
 }
 
-fn process_expr_if(expr_if: syn::ExprIf) -> usize {
-    let mut complexity: usize = 1;
+impl Process for syn::ExprAssign {
+    fn process(self) -> usize {
+        let mut complexity: usize = 0;
 
-    complexity += process_block(expr_if.then_branch);
+        complexity += (*(self.left)).process();
+        complexity += (*(self.right)).process();
 
-    if let Some((_, expr)) = expr_if.else_branch {
-        complexity += process_expr(*expr);
+        complexity
     }
-
-    complexity
 }
 
-fn process_expr_block(expr_block: syn::ExprBlock) -> usize {
-    process_block(expr_block.block)
+impl Process for syn::ExprAssignOp {
+    fn process(self) -> usize {
+        let mut complexity: usize = 0;
+
+        complexity += (*(self.left)).process();
+        complexity += (*(self.right)).process();
+
+        complexity
+    }
+}
+
+impl Process for syn::ExprBlock {
+    fn process(self) -> usize {
+        self.block.process()
+    }
+}
+
+impl Process for syn::ExprBreak {
+    fn process(self) -> usize {
+        let mut complexity: usize = 1;
+
+        if let Some(expr) = self.expr {
+            complexity += (*expr).process();
+        }
+
+        complexity
+    }
+}
+
+impl Process for syn::ExprIf {
+    fn process(self) -> usize {
+        let mut complexity: usize = 1;
+
+        complexity += self.then_branch.process();
+
+        if let Some((_, expr)) = self.else_branch {
+            complexity += (*expr).process();
+        }
+
+        complexity
+    }
 }
